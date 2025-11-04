@@ -664,7 +664,6 @@ class PrescriptionList(QDialog):
 
         for row in range(self.prescription_table.rowCount()):
             compound = self.prescription_table.item(row, 0).text().strip()
-            compound = re.sub(r'\s+', ' ', compound).strip()
             if not compound:
                 QMessageBox.warning(self, "Validation Error", f"Row {row+1}: Compound name cannot be empty.")
                 return
