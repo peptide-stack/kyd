@@ -779,16 +779,15 @@ class PersonDashboard(QMainWindow):
         # Get all prescriptions
         cursor.execute("SELECT * FROM Prescription WHERE person_id = ?", (self.person_id,))
         prescriptions = cursor.fetchall()
-
         for presc in prescriptions:
             prescription = {
                 'id': presc[0],
                 'date_first_prescribed': presc[2],
-                'frequency': presc[7],
-                'cycling_days_on': presc[8],
-                'cycling_days_off': presc[9],
+                'frequency': presc[8],
+                'cycling_days_on': presc[9],
+                'cycling_days_off': presc[10],
                 'compound_name': presc[5],
-                'unit': presc[6],
+                'unit': presc[7],
                 'icon_type': presc[11]
             }
 
