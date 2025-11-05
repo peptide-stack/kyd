@@ -761,7 +761,7 @@ class PersonDashboard(QMainWindow):
         self.person_id = person_id
         self.selected_prescription = None
         self.load_person()
-        self.add_missed_doses_yesterday()
+        # self.add_missed_doses_yesterday()
         self.setup_person_ui()
         self.refresh_dashboard()
 
