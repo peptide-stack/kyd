@@ -442,6 +442,7 @@ class HistoryWindow(QDialog):
         self.history_table.setSizeAdjustPolicy(QTableWidget.SizeAdjustPolicy.AdjustToContents)
         self.history_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.history_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.history_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)  # disables all editing
         layout.addWidget(self.history_table)
 
         # Close button
@@ -546,6 +547,7 @@ class PrescriptionList(QDialog):
             "Cycle On", "Cycle Off", "Date First", "Last Modified", "Last Admin", "Icon", ""
         ])
         self.prescription_table.cellChanged.connect(self.mark_changed)
+        self.prescription_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)  # disables all editing
 
         self.prescription_table.setSizeAdjustPolicy(QTableWidget.SizeAdjustPolicy.AdjustToContents)
         self.prescription_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
@@ -1215,6 +1217,7 @@ class HomeWindow(QMainWindow):
         self.person_list.setHorizontalHeaderLabels(["Name", "Date Added"])
         self.person_list.horizontalHeader().setStretchLastSection(True)
         self.person_list.cellDoubleClicked.connect(self.open_person_dashboard)
+        self.person_list.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)  # disables all editing
         layout.addWidget(self.person_list)
 
         # New person button
