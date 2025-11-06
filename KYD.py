@@ -11,6 +11,7 @@ pip3 install pillow
 import sqlite3
 import sys
 from datetime import datetime, date, timedelta
+from typing import List
 
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QFont
@@ -91,6 +92,18 @@ class Database:
     def close(self):
         self.conn.close()
 
+def monday_wednesday_friday() -> List[int]:
+    return [0, 2, 4]
+
+def monday_thursday() -> List[int]:
+    return [0, 4]
+
+def all_frequencies() -> List[str]:
+    return ['daily', 'twice-daily', 'weekly', 'M,W,F', 'M,TH', 'monthly', 'quarterly']
+
+def weekly_frequencies() -> List[str]:
+    return ['weekly', 'M,W,F', 'M,TH']
+
 # ============================================================================
 # CYCLING LOGIC
 # ============================================================================
@@ -106,13 +119,22 @@ def is_dose_due_on_date(prescription, check_date):
     cycling_on = prescription.get('cycling_days_on')
     cycling_off = prescription.get('cycling_days_off')
 
-    if cycling_on and cycling_off and freq in ['daily', 'weekly']:
-        cycle_length = cycling_on + cycling_off
-        days_since_start = (check_date - date_first).days
-        position_in_cycle = days_since_start % cycle_length
+    if cycling_on and cycling_off:
+        if freq in ['daily', 'twice-daily']:
+            cycle_length = cycling_on + cycling_off
+            days_since_start = (check_date - date_first).days
+            position_in_cycle = days_since_start % cycle_length
 
-        if position_in_cycle >= cycling_on:
-            return 0  # In OFF phase
+            if position_in_cycle >= cycling_on:
+                return 0  # In OFF phase
+        elif freq in weekly_frequencies():
+            # need to know when theoretical first dose was
+            days_since_start = (check_date - date_first).days
+            weeks_since_start = days_since_start // 7
+            cycle_duration_in_weeks = cycling_on + cycling_off
+            weeks_into_cycle = weeks_since_start % cycle_duration_in_weeks
+            if weeks_into_cycle >= cycling_on:
+                return 0 # in OFF phase
 
     # Check frequency
     if freq == 'daily':
@@ -121,6 +143,14 @@ def is_dose_due_on_date(prescription, check_date):
     elif freq == 'twice-daily':
         if check_date >= date_first:
             return 2
+    elif freq == 'M,W,F': # weekday() == 0, 2, 4
+        # Monday Wednesday Friday
+        if check_date >= date_first and check_date.weekday() in monday_wednesday_friday():
+            return 1
+    elif freq == 'M,TH': # weekday() == 0, 2, 4
+        # Monday Wednesday Friday
+        if check_date >= date_first and check_date.weekday() in monday_thursday():
+            return 1
     elif freq == 'weekly':
         # Weekly on same day of week
         if check_date >= date_first and check_date.weekday() == date_first.weekday():
@@ -565,7 +595,7 @@ class PrescriptionList(QDialog):
         # Define a sentinel "minimum" date to represent "no date"
         NO_DATE = QDate(2024, 1, 1)
         edit.setMinimumDate(NO_DATE)
-        edit.setMaximumDate(QDate.currentDate().addDays(31))
+        edit.setMaximumDate(QDate.currentDate().addDays(365))
         edit.setSpecialValueText(" ") # Allow the special value (blank) to be shown when date == minimumDate
 
         if iso_str:
@@ -616,7 +646,7 @@ class PrescriptionList(QDialog):
         self.prescription_table.setCellWidget(row, 2, unit_combo)
 
         freq_combo = QComboBox()
-        freq_combo.addItems(["daily", "twice-daily", "weekly", "monthly", "quarterly"])
+        freq_combo.addItems(all_frequencies())
         freq_combo.setCurrentText(freq)
         freq_combo.currentTextChanged.connect(lambda: self.mark_changed(row, 3))
         self.prescription_table.setCellWidget(row, 3, freq_combo)
@@ -685,11 +715,11 @@ class PrescriptionList(QDialog):
             cycle_on = int(cycle_on_text) if cycle_on_text else None
             cycle_off = int(cycle_off_text) if cycle_off_text else None
 
-            if cycle_on and (cycle_on < 1 or cycle_on > 30):
-                QMessageBox.warning(self, "Validation Error", f"Row {row+1}: Days on must be 1-30.")
+            if cycle_on and cycle_on < 1:
+                QMessageBox.warning(self, "Validation Error", f"Row {row+1}: Days on must be greater than 0.")
                 return
-            if cycle_off and (cycle_off < 1 or cycle_off > 180):
-                QMessageBox.warning(self, "Validation Error", f"Row {row+1}: Days off must be 1-180.")
+            if cycle_off and cycle_off < 1:
+                QMessageBox.warning(self, "Validation Error", f"Row {row+1}: Days off must be greater than 0.")
                 return
 
             date_first = self._get_date_from_cell(row, 6)
