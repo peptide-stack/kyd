@@ -718,10 +718,10 @@ class PrescriptionList(QDialog):
             cycle_off = int(cycle_off_text) if cycle_off_text else None
 
             if cycle_on and cycle_on < 1:
-                QMessageBox.warning(self, "Validation Error", f"Row {row+1}: Days on must be greater than 0.")
+                QMessageBox.warning(self, "Validation Error", f"Row {row+1}: cycle on must be greater than 0.")
                 return
             if cycle_off and cycle_off < 1:
-                QMessageBox.warning(self, "Validation Error", f"Row {row+1}: Days off must be greater than 0.")
+                QMessageBox.warning(self, "Validation Error", f"Row {row+1}: cycle off must be greater than 0.")
                 return
 
             date_first = self._get_date_from_cell(row, 6)
@@ -1014,7 +1014,12 @@ class PersonDashboard(QMainWindow):
             """
 
             if presc.get('cycling_days_on') and presc.get('cycling_days_off'):
-                details_text += f"<b>Cycling:</b> {presc['cycling_days_on']} days on, {presc['cycling_days_off']} days off<br>"
+                cycle_units = "days"
+                # days on, days off
+                if presc['frequency'] in weekly_frequencies():
+                    # weeks on, weeks off
+                    cycle_units = "weeks"
+                details_text += f"<b>Cycling:</b> {presc['cycling_days_on']} {cycle_units} on, {presc['cycling_days_off']} {cycle_units} off<br>"
 
             label = QLabel(details_text)
             self.details_layout.addWidget(label)
