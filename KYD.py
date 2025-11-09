@@ -547,7 +547,6 @@ class PrescriptionList(QDialog):
             "Cycle On", "Cycle Off", "Date First", "Last Modified", "Last Admin", "Icon", ""
         ])
         self.prescription_table.cellChanged.connect(self.mark_changed)
-        self.prescription_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)  # disables all editing
 
         self.prescription_table.setSizeAdjustPolicy(QTableWidget.SizeAdjustPolicy.AdjustToContents)
         self.prescription_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
