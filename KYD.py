@@ -96,7 +96,7 @@ def monday_wednesday_friday() -> List[int]:
     return [0, 2, 4]
 
 def monday_thursday() -> List[int]:
-    return [0, 4]
+    return [0, 3]
 
 def all_frequencies() -> List[str]:
     return ['daily', 'twice-daily', 'weekly', 'M,W,F', 'M,TH', 'monthly', 'quarterly']
