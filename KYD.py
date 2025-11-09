@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem,
     QMessageBox, QDialog, QFormLayout, QComboBox, QSpinBox,
-    QGridLayout, QFrame, QDateEdit, QHeaderView
+    QGridLayout, QFrame, QDateEdit, QHeaderView, QDialogButtonBox
 )
 # from dateutil.relativedelta import relativedelta
 
@@ -84,6 +84,16 @@ class Database:
                 unit TEXT NOT NULL,
                 dose_number INTEGER DEFAULT 1,
                 FOREIGN KEY (person_id) REFERENCES Person(id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Inventory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                quantity INTEGER NOT NULL CHECK(quantity >= 0),
+                vial_size INTEGER NOT NULL CHECK(vial_size >= 1),
+                unit TEXT NOT NULL CHECK(unit IN ('mg', 'mcg', 'ml'))
             )
         """)
 
@@ -1229,6 +1239,15 @@ class HomeWindow(QMainWindow):
         new_person_btn.clicked.connect(self.new_person)
         layout.addWidget(new_person_btn)
 
+        inv_btn = QPushButton("Inventory")
+        inv_btn.clicked.connect(self.open_inventory)
+        layout.addWidget(inv_btn)
+
+    def open_inventory(self):
+        dialog = InventoryWindow(self.db, self)
+        if dialog.exec():
+            self.refresh_dashboard()
+
     def load_persons(self):
         cursor = self.db.conn.cursor()
         cursor.execute("SELECT id, name, date_added FROM Person ORDER BY name")
@@ -1251,6 +1270,138 @@ class HomeWindow(QMainWindow):
         person_id = self.person_list.item(row, 0).data(Qt.ItemDataRole.UserRole)
         dashboard = PersonDashboard(self.db, person_id, self)
         dashboard.show()
+
+
+
+class ItemDialog(QDialog):
+    def __init__(self, parent=None):
+        UNITS = ["mg", "mcg", "ml"]
+
+        super().__init__(parent)
+        self.setWindowTitle("New Item")
+        layout = QFormLayout(self)
+
+        self.name_edit = QLineEdit()
+        self.name_edit.setMaxLength(255)
+        self.name_edit.setMinimumWidth(160)
+        self.quantity_spin = QSpinBox()
+        self.quantity_spin.setMinimum(0)
+        self.quantity_spin.setMinimumWidth(60)
+        self.vial_spin = QSpinBox()
+        self.vial_spin.setMinimum(1)
+        self.vial_spin.setMinimumWidth(60)
+        self.unit_combo = QComboBox()
+        self.unit_combo.addItems(UNITS)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout.addRow("Name:", self.name_edit)
+        layout.addRow("Quantity:", self.quantity_spin)
+        layout.addRow("Vial Size:", self.vial_spin)
+        layout.addRow("Unit:", self.unit_combo)
+        layout.addRow(buttons)
+
+    def get_data(self):
+        return (
+            self.name_edit.text().strip(),
+            self.quantity_spin.value(),
+            self.vial_spin.value(),
+            self.unit_combo.currentText()
+        )
+
+class InventoryWindow(QDialog):
+    def __init__(self, db, parent=None):
+        super().__init__(parent)
+        self.table = None
+        self.name_input = None
+        self.db = db
+        self.setModal(True)
+        self.setWindowTitle("Inventory")
+        self.setup_inventory_ui()
+        self.resize(800, 400)
+
+    def setup_inventory_ui(self):
+        self.table = QTableWidget(0, 6)
+        self.table.setHorizontalHeaderLabels(["Name", "Quantity", "Vial Size", "Unit", "Add", "Subtract"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+
+        new_btn = QPushButton("New")
+        new_btn.clicked.connect(self.add_item)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.table)
+        layout.addWidget(new_btn, alignment=Qt.AlignmentFlag.AlignRight)
+
+        self.setLayout(layout)
+        self.load_data()
+
+    def load_data(self):
+        cur = self.db.conn.cursor()
+        cur.execute("SELECT id, name, quantity, vial_size, unit FROM Inventory ORDER BY name, vial_size")
+        rows = cur.fetchall()
+
+        self.table.setRowCount(0)
+        for row_data in rows:
+            self.add_table_row(row_data)
+
+    def add_table_row(self, data):
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+        item_id, name, qty, vial, unit = data
+
+        self.table.setItem(row, 0, QTableWidgetItem(name))
+        qty_item = QTableWidgetItem(str(qty))
+        qty_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        qty_item.setData(Qt.ItemDataRole.UserRole, item_id)
+        self.table.setItem(row, 1, qty_item)
+        self.table.setItem(row, 2, QTableWidgetItem(str(vial)))
+        self.table.setItem(row, 3, QTableWidgetItem(unit))
+
+        plus_btn = QPushButton("+")
+        plus_btn.clicked.connect(lambda: self.modify_qty(item_id, 1))
+        self.table.setCellWidget(row, 4, plus_btn)
+
+        minus_btn = QPushButton("-")
+        minus_btn.clicked.connect(lambda: self.modify_qty(item_id, -1))
+        minus_btn.setEnabled(qty > 0)
+        self.table.setCellWidget(row, 5, minus_btn)
+
+    def add_item(self):
+        dialog = ItemDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            name, qty, vial, unit = dialog.get_data()
+            if not name:
+                return
+            cur = self.db.conn.cursor()
+            try:
+                cur.execute("INSERT INTO Inventory (name, quantity, vial_size, unit) VALUES (?, ?, ?, ?)",
+                            (name, qty, vial, unit))
+                self.db.conn.commit()
+                item_id = cur.lastrowid
+                self.add_table_row((item_id, name, qty, vial, unit))
+            except sqlite3.IntegrityError:
+                pass  # duplicate name
+
+    def modify_qty(self, item_id, delta):
+        cur = self.db.conn.cursor()
+        cur.execute("SELECT quantity FROM Inventory WHERE id=?", (item_id,))
+        current = cur.fetchone()[0]
+        new_qty = max(0, current + delta)
+        if new_qty == 0:
+            cur.execute("DELETE FROM Inventory WHERE id=?", (item_id,))
+            self.db.conn.commit()
+            self.load_data()
+        else:
+            cur.execute("UPDATE Inventory SET quantity=? WHERE id=?", (new_qty, item_id))
+            self.db.conn.commit()
+            for row in range(self.table.rowCount()):
+                if self.table.item(row, 1).data(Qt.ItemDataRole.UserRole) == item_id:
+                    self.table.item(row, 1).setText(str(new_qty))
+                    self.table.cellWidget(row, 5).setEnabled(new_qty > 0)
+                    break
 
 # ============================================================================
 # MAIN APPLICATION
