@@ -14,7 +14,7 @@ from datetime import datetime, date, timedelta
 from typing import List
 
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QBrush, QColor
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem,
@@ -93,8 +93,8 @@ class Database:
                 name TEXT NOT NULL,
                 quantity INTEGER NOT NULL CHECK(quantity >= 0),
                 vial_size INTEGER NOT NULL CHECK(vial_size >= 1),
-                unit TEXT NOT NULL CHECK(unit IN ('mg', 'mcg', 'ml'))
-            )
+                unit TEXT NOT NULL CHECK(unit IN ('mg', 'mcg', 'ml')),
+                reorder_code TEXT NOT NULL)
         """)
 
         self.conn.commit()
@@ -1292,6 +1292,9 @@ class ItemDialog(QDialog):
         self.vial_spin.setMinimumWidth(60)
         self.unit_combo = QComboBox()
         self.unit_combo.addItems(UNITS)
+        self.reorder_edit = QLineEdit()
+        self.reorder_edit.setMaxLength(255)
+        self.reorder_edit.setMinimumWidth(160)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -1301,6 +1304,7 @@ class ItemDialog(QDialog):
         layout.addRow("Quantity:", self.quantity_spin)
         layout.addRow("Vial Size:", self.vial_spin)
         layout.addRow("Unit:", self.unit_combo)
+        layout.addRow("Reorder:", self.reorder_edit)
         layout.addRow(buttons)
 
     def get_data(self):
@@ -1308,7 +1312,8 @@ class ItemDialog(QDialog):
             self.name_edit.text().strip(),
             self.quantity_spin.value(),
             self.vial_spin.value(),
-            self.unit_combo.currentText()
+            self.unit_combo.currentText(),
+            self.reorder_edit.text().strip()
         )
 
 class InventoryWindow(QDialog):
@@ -1320,11 +1325,11 @@ class InventoryWindow(QDialog):
         self.setModal(True)
         self.setWindowTitle("Inventory")
         self.setup_inventory_ui()
-        self.resize(800, 400)
+        self.resize(800, 600)
 
     def setup_inventory_ui(self):
-        self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["Name", "Quantity", "Vial Size", "Unit", "Add", "Subtract"])
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(["Name", "Quantity", "Vial Size", "Unit", "Add", "Subtract", "Reorder"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
 
@@ -1340,7 +1345,7 @@ class InventoryWindow(QDialog):
 
     def load_data(self):
         cur = self.db.conn.cursor()
-        cur.execute("SELECT id, name, quantity, vial_size, unit FROM Inventory ORDER BY name, vial_size")
+        cur.execute("SELECT id, name, quantity, vial_size, unit, reorder_code FROM Inventory ORDER BY name, vial_size")
         rows = cur.fetchall()
 
         self.table.setRowCount(0)
@@ -1350,15 +1355,18 @@ class InventoryWindow(QDialog):
     def add_table_row(self, data):
         row = self.table.rowCount()
         self.table.insertRow(row)
-        item_id, name, qty, vial, unit = data
+        item_id, name, qty, vial, unit, reorder_code = data
 
         self.table.setItem(row, 0, QTableWidgetItem(name))
         qty_item = QTableWidgetItem(str(qty))
         qty_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         qty_item.setData(Qt.ItemDataRole.UserRole, item_id)
+        if qty == 0:
+            qty_item.setBackground(QBrush(QColor("yellow")))
         self.table.setItem(row, 1, qty_item)
         self.table.setItem(row, 2, QTableWidgetItem(str(vial)))
         self.table.setItem(row, 3, QTableWidgetItem(unit))
+        self.table.setItem(row, 6, QTableWidgetItem(reorder_code))
 
         plus_btn = QPushButton("+")
         plus_btn.clicked.connect(lambda: self.modify_qty(item_id, 1))
@@ -1372,16 +1380,16 @@ class InventoryWindow(QDialog):
     def add_item(self):
         dialog = ItemDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            name, qty, vial, unit = dialog.get_data()
+            name, qty, vial, unit, reorder_code = dialog.get_data()
             if not name:
                 return
             cur = self.db.conn.cursor()
             try:
-                cur.execute("INSERT INTO Inventory (name, quantity, vial_size, unit) VALUES (?, ?, ?, ?)",
-                            (name, qty, vial, unit))
+                cur.execute("INSERT INTO Inventory (name, quantity, vial_size, unit, reorder_code) VALUES (?, ?, ?, ?, ?)",
+                            (name, qty, vial, unit, reorder_code))
                 self.db.conn.commit()
                 item_id = cur.lastrowid
-                self.add_table_row((item_id, name, qty, vial, unit))
+                self.add_table_row((item_id, name, qty, vial, unit, reorder_code))
             except sqlite3.IntegrityError:
                 pass  # duplicate name
 
@@ -1390,11 +1398,8 @@ class InventoryWindow(QDialog):
         cur.execute("SELECT quantity FROM Inventory WHERE id=?", (item_id,))
         current = cur.fetchone()[0]
         new_qty = max(0, current + delta)
-        if new_qty == 0:
-            cur.execute("DELETE FROM Inventory WHERE id=?", (item_id,))
-            self.db.conn.commit()
-            self.load_data()
-        else:
+        # not going to delete when quantity goes to zero, to keep the reorder information handy
+        if new_qty >= 0:
             cur.execute("UPDATE Inventory SET quantity=? WHERE id=?", (new_qty, item_id))
             self.db.conn.commit()
             for row in range(self.table.rowCount()):
