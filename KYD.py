@@ -370,7 +370,7 @@ class DoseHistoryEditDialog(QDialog):
 
     def load_dose(self):
         cursor = self.db.conn.cursor()
-        cursor.execute("SELECT * FROM HistoricalDose WHERE id = ?", (self.dose_id,))
+        cursor.execute("SELECT * FROM HistoricalDose WHERE id = ? order by date_administered DESC", (self.dose_id,))
         dose = cursor.fetchone()
         if dose:
             self.date_input.setDate(QDate.fromString(dose[3], "yyyy-MM-dd"))
@@ -589,7 +589,7 @@ class PrescriptionList(QDialog):
 
     def load_prescriptions(self):
         cursor = self.db.conn.cursor()
-        cursor.execute("SELECT * FROM Prescription WHERE person_id = ?", (self.person_id,))
+        cursor.execute("SELECT * FROM Prescription WHERE person_id = ? order by compound_name ASC, date_last_administered DESC", (self.person_id,))
         prescriptions = cursor.fetchall()
 
         self.prescription_table.setRowCount(len(prescriptions))
@@ -818,7 +818,7 @@ class PersonDashboard(QMainWindow):
         cursor = self.db.conn.cursor()
 
         # Get all prescriptions
-        cursor.execute("SELECT * FROM Prescription WHERE person_id = ?", (self.person_id,))
+        cursor.execute("SELECT * FROM Prescription WHERE person_id = ? order by compound_name ASC, date_last_administered DESC", (self.person_id,))
         prescriptions = cursor.fetchall()
         for presc in prescriptions:
             prescription = {
@@ -925,7 +925,7 @@ class PersonDashboard(QMainWindow):
         # sunday = today - timedelta(days=days_since_sunday)
 
         cursor = self.db.conn.cursor()
-        cursor.execute("SELECT * FROM Prescription WHERE person_id = ?", (self.person_id,))
+        cursor.execute("SELECT * FROM Prescription WHERE person_id = ? ORDER BY compound_name ASC, date_last_administered DESC", (self.person_id,))
         prescriptions = cursor.fetchall()
 
         # Build icon grid
@@ -1066,7 +1066,7 @@ class PersonDashboard(QMainWindow):
             # Show doses due today
             today = get_today()
             cursor = self.db.conn.cursor()
-            cursor.execute("SELECT * FROM Prescription WHERE person_id = ?", (self.person_id,))
+            cursor.execute("SELECT * FROM Prescription WHERE person_id = ? order by compound_name ASC, date_last_administered DESC", (self.person_id,))
             prescriptions = cursor.fetchall()
 
             due_today = []
