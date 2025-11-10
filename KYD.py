@@ -1368,11 +1368,11 @@ class InventoryWindow(QDialog):
         self.table.setItem(row, 3, QTableWidgetItem(unit))
         self.table.setItem(row, 6, QTableWidgetItem(reorder_code))
 
-        plus_btn = QPushButton("+")
+        plus_btn = QPushButton("➕")
         plus_btn.clicked.connect(lambda: self.modify_qty(item_id, 1))
         self.table.setCellWidget(row, 4, plus_btn)
 
-        minus_btn = QPushButton("-")
+        minus_btn = QPushButton("➖")
         minus_btn.clicked.connect(lambda: self.modify_qty(item_id, -1))
         minus_btn.setEnabled(qty > 0)
         self.table.setCellWidget(row, 5, minus_btn)
