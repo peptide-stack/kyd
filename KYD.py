@@ -856,7 +856,8 @@ class PersonDashboard(QMainWindow):
         self.db.conn.commit()
 
     def setup_person_ui(self):
-        self.setWindowTitle(f"Dashboard - {self.person_name}")
+        today_str = get_today().strftime("%m-%d-%y (%A)")
+        self.setWindowTitle(f"Dashboard - {today_str}")
         self.resize(900, 700)
 
         central_widget = QWidget()
