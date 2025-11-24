@@ -13,7 +13,7 @@ import sys
 from datetime import datetime, date, timedelta
 from typing import List
 
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt, QDate, QModelIndex
 from PyQt6.QtGui import QFont, QBrush, QColor
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -701,6 +701,9 @@ class PrescriptionList(QDialog):
             self.changed = True
 
     def save_changes(self):
+        # stop any editing
+        self.prescription_table.setCurrentIndex(QModelIndex())
+
         cursor = self.db.conn.cursor()
 
         for row in range(self.prescription_table.rowCount()):
@@ -740,9 +743,8 @@ class PrescriptionList(QDialog):
             # date_modified = self.table.item(row, 7).text()
             # date_last_admin = self.table.item(row, 8).text() if self.table.item(row, 8).text() else None
 
-            icon_str = self._get_date_from_cell(row, 9)
-            if icon_str is None:
-                icon_str = "💊"
+            item = self.prescription_table.item(row, 9)
+            icon_str = item.text() if item is not None else "💊"
 
             prescription_id = self.prescription_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
 
