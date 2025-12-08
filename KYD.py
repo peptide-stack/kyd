@@ -31,7 +31,7 @@ GLOBAL_TIME_DELTA_DAYS = 0
 def get_today():
     """Centralized function to get today's date. Modify this for testing."""
     right_now = date.today()
-    if GLOBAL_TIME_DELTA_DAYS is not 0:
+    if GLOBAL_TIME_DELTA_DAYS != 0:
         return right_now + timedelta(days=GLOBAL_TIME_DELTA_DAYS)
     return right_now
     # For testing future dates, uncomment and modify:
