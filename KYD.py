@@ -531,94 +531,6 @@ class HistoryWindow(QDialog):
 
 
 # ============================================================================
-# DATE PICKER
-# ============================================================================
-class DatePicker(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.actual_date = date.today()
-        self.assigned_date = get_today()
-
-        # then = now + timedelta(days=7)
-        # days_diff = (other_time - now).days  # positive = future, negative = past
-
-        self.setWindowTitle("Alter Date")
-        self.setModal(True)
-        self.resize(400, 200)
-        self.changed = False
-        self.date_edit = None
-        self.setup_date_ui()
-
-    def setup_date_ui(self):
-        layout = QVBoxLayout()
-
-        edit = QDateEdit()
-        edit.setCalendarPopup(True)
-        edit.setDisplayFormat("yyyy-MM-dd")
-
-        # Define a sentinel "minimum" date to represent "no date"
-        NO_DATE = QDate(2024, 1, 1)
-        edit.setMinimumDate(NO_DATE)
-        edit.setMaximumDate(QDate.currentDate().addDays(730))
-        edit.setSpecialValueText(" ") # Allow the special value (blank) to be shown when date == minimumDate
-        iso_str = self.assigned_date.isoformat()
-        date_local = QDate.fromString(iso_str, "yyyy-MM-dd")
-        if date_local.isValid():
-            edit.setDate(date_local)
-        else:
-            edit.setDate(NO_DATE)  # fallback
-
-        # Connect signal
-        # edit.dateChanged.connect(lambda: self.mark_changed())
-
-        layout.addWidget(edit)
-        self.date_edit = edit
-
-        # Save/Cancel buttons
-        button_layout = QHBoxLayout()
-        save_btn = QPushButton("Save")
-        today_btn = QPushButton("Jump To Today")
-        cancel_btn = QPushButton("Cancel")
-        save_btn.clicked.connect(self.save_changes)
-        today_btn.clicked.connect(self.set_today)
-        cancel_btn.clicked.connect(self.cancel_changes)
-        button_layout.addWidget(save_btn)
-        button_layout.addWidget(today_btn)
-        button_layout.addWidget(cancel_btn)
-        layout.addLayout(button_layout)
-
-        # today_btn.setStyleSheet("""
-        #     QPushButton {
-        #         background-color: red;
-        #         color: white;
-        #         border-radius: 6px;
-        #         padding: 6px 12px;
-        #     }
-        #     QPushButton:hover { background-color: #cc0000; }
-        #     QPushButton:pressed { background-color: #aa0000; }
-        # """)
-
-        self.setLayout(layout)
-
-    def set_today(self):
-        global GLOBAL_TIME_DELTA_DAYS
-        GLOBAL_TIME_DELTA_DAYS = 0
-        self.accept()
-
-    def save_changes(self):
-        global GLOBAL_TIME_DELTA_DAYS
-        # stop any editing
-        chosen_date = self.date_edit.text().strip()
-
-        new_date = date.fromisoformat(chosen_date)
-        # then = now + timedelta(days=7)
-        GLOBAL_TIME_DELTA_DAYS = (new_date - self.actual_date).days  # positive = future, negative = past
-        self.accept()
-
-    def cancel_changes(self):
-        self.reject()
-
-# ============================================================================
 # SCREEN 3: PERSON CONFIGURATION
 # ============================================================================
 class PrescriptionList(QDialog):
@@ -1472,12 +1384,6 @@ class PersonDashboard(QMainWindow):
             GLOBAL_TIME_DELTA_DAYS += day_delta
         self.setup_person_ui()
         self.refresh_dashboard()
-
-    def open_date(self):
-        dialog = DatePicker(self)
-        if dialog.exec():
-            self.setup_window_title()
-            self.refresh_dashboard()
 
     def open_history(self):
         dialog = HistoryWindow(self.db, self.person_id, self)
