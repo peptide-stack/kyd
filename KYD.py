@@ -16,12 +16,14 @@ from typing import List
 from PyQt6.QtCore import Qt, QDate, QModelIndex
 from PyQt6.QtGui import QFont, QBrush, QColor
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLayoutItem,
     QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem,
     QMessageBox, QDialog, QFormLayout, QComboBox, QSpinBox,
-    QGridLayout, QFrame, QDateEdit, QHeaderView, QDialogButtonBox
+    QGridLayout, QFrame, QDateEdit, QHeaderView, QDialogButtonBox, QLayout
 )
 # from dateutil.relativedelta import relativedelta
+
+# noinspection PyMethodMayBeStatic
 
 
 GLOBAL_TIME_DELTA_DAYS = 0
@@ -890,14 +892,15 @@ class PersonDashboard(QMainWindow):
     def __init__(self, db, person_id, parent=None):
         super().__init__(parent)
         self.details_layout = None
-        self.details_frame = None
         self.weekly_grid = None
         self.person_name = None
+        self.future_layout = None
         self.db = db
         self.person_id = person_id
         self.selected_prescription = None
         self.load_person()
         # self.add_missed_doses_yesterday()
+        self.resize(900, 750)
         self.setup_person_ui()
         self.refresh_dashboard()
 
@@ -960,28 +963,93 @@ class PersonDashboard(QMainWindow):
 
         self.setWindowTitle(f"Dashboard - {today_str}")
 
+    def _add_horizontal_separator(self, main_layout: QLayoutItem):
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.VLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        main_layout.addWidget(line)
+
+    def _add_vertical_separator(self, main_layout: QLayoutItem):
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        main_layout.addWidget(line)
+
+    def _add_header(self, main_layout: QLayoutItem):
+        # Header
+        header_layout = QHBoxLayout()
+
+        name_layout = QVBoxLayout()
+        header_label = QLabel(self.person_name)
+        header_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
+        name_layout.addWidget(header_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        edit_btn = QPushButton("Prescriptions 💊")
+        edit_btn.clicked.connect(self.open_config)
+        name_layout.addWidget(edit_btn, stretch=1)
+
+        history_btn = QPushButton("History 📜")
+        history_btn.clicked.connect(self.open_history)
+        name_layout.addWidget(history_btn, stretch=1)
+
+        header_layout.addLayout(name_layout)
+
+        self._add_horizontal_separator(header_layout)
+        self._add_date_bar(header_layout)
+
+        header_layout.addStretch()
+
+        header_widget = QWidget()
+        header_widget.setStyleSheet("")
+        header_widget.setLayout(header_layout)
+        header_widget.setMaximumHeight(125)
+        main_layout.addWidget(header_widget)
+
+        # main_layout.addLayout(header_layout)
+
+    def _add_date_bar(self, main_layout: QLayoutItem):
+        # Change Date Label
+        primary_layout = QVBoxLayout()
+        date_label_layout = QHBoxLayout()
+        date_label = QLabel("Change Date")
+        date_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        date_label_layout.addWidget(date_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        primary_layout.addLayout(date_label_layout)
+
+        date_control_layout = QHBoxLayout()
+        week_back_btn = QPushButton("⬅️ Week")
+        week_back_btn.clicked.connect(lambda: self.change_date(-7))
+        date_control_layout.addWidget(week_back_btn)
+
+        day_back_btn = QPushButton("◀️ Day")
+        day_back_btn.clicked.connect(lambda: self.change_date(-1))
+        date_control_layout.addWidget(day_back_btn)
+
+        today_btn = QPushButton("🏠 Today")
+        today_btn.clicked.connect(lambda: self.change_date(0))
+        date_control_layout.addWidget(today_btn)
+
+
+        day_fwd_btn = QPushButton("Day ▶️")
+        day_fwd_btn.clicked.connect(lambda: self.change_date(1))
+        date_control_layout.addWidget(day_fwd_btn)
+
+        week_fwd_btn = QPushButton("Week ➡️")
+        week_fwd_btn.clicked.connect(lambda: self.change_date(7))
+        date_control_layout.addWidget(week_fwd_btn)
+        primary_layout.addLayout(date_control_layout)
+
+        main_layout.addLayout(primary_layout)
+
     def setup_person_ui(self):
         self.setup_window_title()
-        self.resize(900, 700)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
 
-        # Header
-        header_layout = QHBoxLayout()
-        header_label = QLabel(self.person_name)
-        header_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
-        header_layout.addWidget(header_label)
-        edit_btn = QPushButton("Prescriptions 💊")
-        edit_btn.clicked.connect(self.open_config)
-        date_btn = QPushButton("Change Date 🗓️")
-        date_btn.clicked.connect(self.open_date)
-
-        header_layout.addWidget(edit_btn)
-        header_layout.addWidget(date_btn)
-        header_layout.addStretch()
-        main_layout.addLayout(header_layout)
+        self._add_header(main_layout)
+        self._add_vertical_separator(main_layout)
 
         # Weekly grid
         self.weekly_grid = QGridLayout()
@@ -1001,20 +1069,28 @@ class PersonDashboard(QMainWindow):
         main_layout.addLayout(self.weekly_grid)
 
         # Details frame
-        self.details_frame = QFrame()
-        self.details_frame.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
-        self.details_layout = QVBoxLayout(self.details_frame)
-        main_layout.addWidget(self.details_frame)
+        details_section = QHBoxLayout()
+        future_frame = QFrame()
+        future_frame.setMinimumHeight(250)
+        future_frame.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Sunken)
+        self.future_layout = QVBoxLayout(future_frame)
 
-        # History button
-        history_btn = QPushButton("History")
-        history_btn.clicked.connect(self.open_history)
-        main_layout.addWidget(history_btn)
+        details_frame = QFrame()
+        details_frame.setMinimumHeight(250)
+        details_frame.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Sunken)
+        self.details_layout = QVBoxLayout(details_frame)
+
+        # main_layout.addWidget(details_frame)
+        details_section.addWidget(details_frame)
+        details_section.addWidget(future_frame)
+
+        main_layout.addLayout(details_section)
 
     def refresh_dashboard(self):
         self.clear_weekly_grid()
         self.populate_weekly_grid()
         self.update_details_area()
+        self.populate_future_doses()
 
     def clear_weekly_grid(self):
         # Clear all widgets except day labels (row 0)
@@ -1100,14 +1176,9 @@ class PersonDashboard(QMainWindow):
                 self.weekly_grid.addWidget(icon_widget, row, col)
                 row += 1
 
-    def select_prescription(self, prescription):
-        self.selected_prescription = prescription
-        self.update_details_area()
-
-    def update_details_area(self):
-        # Clear current layout
-        for _ in reversed(range(self.details_layout.count())):
-            item = self.details_layout.takeAt(0)
+    def _clear_layout(self, layout: QLayout):
+        for _ in reversed(range(layout.count())):
+            item = layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
             elif item.layout():
@@ -1119,6 +1190,104 @@ class PersonDashboard(QMainWindow):
                         child.widget().deleteLater()
                 sub.deleteLater()
 
+    def populate_future_doses(self):
+        # Clear current layout
+        self._clear_layout(self.future_layout)
+
+        DAYS_AHEAD = 30
+        future_doses = self.upcoming_doses(DAYS_AHEAD)
+
+        if len(future_doses) > 0:
+            dose_row = 0
+            title = QLabel(f"<b>Doses in next {DAYS_AHEAD} days:</b>")
+            self.future_layout.addWidget(title)
+            future_compounds = sorted(future_doses.keys())
+
+            for compound_name in future_compounds:
+                future_grid = QGridLayout()
+                future_grid.setSpacing(10)
+
+                prescription = future_doses[compound_name]
+
+                if prescription['unit'] == 'mcg' and prescription['amount'] > 1000:
+                    to_milligrams = prescription['amount'] / 1000.0
+                    prescription['unit'] = 'mg'
+                    prescription['amount'] = to_milligrams
+
+                name_label = QLabel(f"{prescription['compound_name']} {prescription['icon_type']}")
+                amount_label = QLabel(f"{prescription['amount']} {prescription['unit']}")
+                count_label = QLabel(f"{prescription['doses']} doses")
+
+                future_grid.addWidget(name_label, dose_row, 0)
+                future_grid.addWidget(amount_label, dose_row, 1)
+                future_grid.addWidget(count_label, dose_row, 2)
+
+                self.future_layout.addLayout(future_grid)
+        else:
+            label = QLabel("No Pending Doses")
+            self.future_layout.addWidget(label)
+
+
+    def upcoming_doses(self, days_ahead: int):
+        today = get_today()
+
+        cursor = self.db.conn.cursor()
+        cursor.execute("SELECT * FROM Prescription WHERE person_id = ? ORDER BY compound_name ASC, date_last_administered DESC", (self.person_id,))
+        prescriptions = cursor.fetchall()
+
+        future_doses = {}
+
+        for day_delta in range(days_ahead):
+            check_date = today + timedelta(days=day_delta)
+
+            # Only show current and future dates
+            if check_date < today:
+                continue
+
+            for presc in prescriptions:
+                prescription = {
+                    'id': presc[0],
+                    'date_first_prescribed': presc[2],
+                    'date_last_administered': presc[4],
+                    'compound_name': presc[5],
+                    'amount': presc[6],
+                    'unit': presc[7],
+                    'frequency': presc[8],
+                    'cycling_days_on': presc[9],
+                    'cycling_days_off': presc[10],
+                    'icon_type': presc[11]
+                }
+
+                expected_doses = is_dose_due_on_date(prescription, check_date)
+                if expected_doses > 0:
+                    dose_amount = int(prescription['amount']) * expected_doses
+                    compound_name = prescription['compound_name']
+                    future_dose = future_doses.get(compound_name, None)
+                    if future_dose is None:
+                        future_dose = { 'compound_name': compound_name,
+                                        'amount': dose_amount,
+                                        'doses': expected_doses,
+                                        'unit': prescription['unit'],
+                                        'icon_type': prescription['icon_type'],
+                                        }
+                    else:
+                        future_dose_count = future_dose['doses']
+                        future_dose_amount = future_dose['amount']
+                        future_dose_count += expected_doses
+                        future_dose_amount += dose_amount
+                        future_dose['doses'] = future_dose_count
+                        future_dose['amount'] = future_dose_amount
+                    future_doses[compound_name] = future_dose
+
+        return future_doses
+
+    def select_prescription(self, prescription):
+        self.selected_prescription = prescription
+        self.update_details_area()
+
+    def update_details_area(self):
+        # Clear current layout
+        self._clear_layout(self.details_layout)
 
         if self.selected_prescription:
             # Show selected prescription details
@@ -1160,17 +1329,6 @@ class PersonDashboard(QMainWindow):
                     administer_btn = QPushButton(f"Administer Dose ({remaining} remaining)")
                     administer_btn.clicked.connect(lambda: self.administer_selected_dose(remaining))
                     self.details_layout.addWidget(administer_btn)
-
-            # Edit and delete buttons
-            # button_layout = QHBoxLayout()
-            # edit_btn = QPushButton(f"✏️ Edit {presc['compound_name']} Prescription")
-            # delete_btn = QPushButton(f"❌ Delete {presc['compound_name']} Prescription")
-            # edit_btn.clicked.connect(self.edit_selected_prescription)
-            # delete_btn.clicked.connect(self.delete_selected_prescription)
-            # button_layout.addWidget(edit_btn)
-            # button_layout.addWidget(delete_btn)
-            # self.details_layout.addLayout(button_layout)
-
         else:
             # Show doses due today
             today = get_today()
@@ -1305,6 +1463,15 @@ class PersonDashboard(QMainWindow):
         dialog = PrescriptionList(self.db, self.person_id, self)
         if dialog.exec():
             self.refresh_dashboard()
+
+    def change_date(self, day_delta: int):
+        global GLOBAL_TIME_DELTA_DAYS
+        if day_delta == 0:
+            GLOBAL_TIME_DELTA_DAYS = 0
+        else:
+            GLOBAL_TIME_DELTA_DAYS += day_delta
+        self.setup_person_ui()
+        self.refresh_dashboard()
 
     def open_date(self):
         dialog = DatePicker(self)
