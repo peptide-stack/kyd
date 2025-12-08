@@ -24,12 +24,16 @@ from PyQt6.QtWidgets import (
 # from dateutil.relativedelta import relativedelta
 
 
+GLOBAL_TIME_DELTA_DAYS = 0
 # ============================================================================
 # CENTRALIZED DATE FUNCTION FOR DEBUGGING
 # ============================================================================
 def get_today():
     """Centralized function to get today's date. Modify this for testing."""
-    return date.today()
+    right_now = date.today()
+    if GLOBAL_TIME_DELTA_DAYS is not 0:
+        return right_now + timedelta(days=GLOBAL_TIME_DELTA_DAYS)
+    return right_now
     # For testing future dates, uncomment and modify:
     # return date(2025, 11, 10)
 
@@ -523,6 +527,95 @@ class HistoryWindow(QDialog):
             self.db.conn.commit()
             self.history_table.removeRow(row)
 
+
+# ============================================================================
+# DATE PICKER
+# ============================================================================
+class DatePicker(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.actual_date = date.today()
+        self.assigned_date = get_today()
+
+        # then = now + timedelta(days=7)
+        # days_diff = (other_time - now).days  # positive = future, negative = past
+
+        self.setWindowTitle("Alter Date")
+        self.setModal(True)
+        self.resize(400, 200)
+        self.changed = False
+        self.date_edit = None
+        self.setup_date_ui()
+
+    def setup_date_ui(self):
+        layout = QVBoxLayout()
+
+        edit = QDateEdit()
+        edit.setCalendarPopup(True)
+        edit.setDisplayFormat("yyyy-MM-dd")
+
+        # Define a sentinel "minimum" date to represent "no date"
+        NO_DATE = QDate(2024, 1, 1)
+        edit.setMinimumDate(NO_DATE)
+        edit.setMaximumDate(QDate.currentDate().addDays(730))
+        edit.setSpecialValueText(" ") # Allow the special value (blank) to be shown when date == minimumDate
+        iso_str = self.assigned_date.isoformat()
+        date_local = QDate.fromString(iso_str, "yyyy-MM-dd")
+        if date_local.isValid():
+            edit.setDate(date_local)
+        else:
+            edit.setDate(NO_DATE)  # fallback
+
+        # Connect signal
+        # edit.dateChanged.connect(lambda: self.mark_changed())
+
+        layout.addWidget(edit)
+        self.date_edit = edit
+
+        # Save/Cancel buttons
+        button_layout = QHBoxLayout()
+        save_btn = QPushButton("Save")
+        today_btn = QPushButton("Jump To Today")
+        cancel_btn = QPushButton("Cancel")
+        save_btn.clicked.connect(self.save_changes)
+        today_btn.clicked.connect(self.set_today)
+        cancel_btn.clicked.connect(self.cancel_changes)
+        button_layout.addWidget(save_btn)
+        button_layout.addWidget(today_btn)
+        button_layout.addWidget(cancel_btn)
+        layout.addLayout(button_layout)
+
+        # today_btn.setStyleSheet("""
+        #     QPushButton {
+        #         background-color: red;
+        #         color: white;
+        #         border-radius: 6px;
+        #         padding: 6px 12px;
+        #     }
+        #     QPushButton:hover { background-color: #cc0000; }
+        #     QPushButton:pressed { background-color: #aa0000; }
+        # """)
+
+        self.setLayout(layout)
+
+    def set_today(self):
+        global GLOBAL_TIME_DELTA_DAYS
+        GLOBAL_TIME_DELTA_DAYS = 0
+        self.accept()
+
+    def save_changes(self):
+        global GLOBAL_TIME_DELTA_DAYS
+        # stop any editing
+        chosen_date = self.date_edit.text().strip()
+
+        new_date = date.fromisoformat(chosen_date)
+        # then = now + timedelta(days=7)
+        GLOBAL_TIME_DELTA_DAYS = (new_date - self.actual_date).days  # positive = future, negative = past
+        self.accept()
+
+    def cancel_changes(self):
+        self.reject()
+
 # ============================================================================
 # SCREEN 3: PERSON CONFIGURATION
 # ============================================================================
@@ -857,9 +950,18 @@ class PersonDashboard(QMainWindow):
 
         self.db.conn.commit()
 
-    def setup_person_ui(self):
-        today_str = get_today().strftime("%m-%d-%y (%A)")
+    def setup_window_title(self):
+        global GLOBAL_TIME_DELTA_DAYS
+        today_str = get_today().strftime("%m-%d-%Y (%A)")
+        if GLOBAL_TIME_DELTA_DAYS > 0:
+            today_str += f" : [+{GLOBAL_TIME_DELTA_DAYS} days]"
+        elif GLOBAL_TIME_DELTA_DAYS < 0:
+            today_str += f" : [{GLOBAL_TIME_DELTA_DAYS} days]"
+
         self.setWindowTitle(f"Dashboard - {today_str}")
+
+    def setup_person_ui(self):
+        self.setup_window_title()
         self.resize(900, 700)
 
         central_widget = QWidget()
@@ -871,9 +973,13 @@ class PersonDashboard(QMainWindow):
         header_label = QLabel(self.person_name)
         header_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
         header_layout.addWidget(header_label)
-        edit_btn = QPushButton("Prescriptions")
+        edit_btn = QPushButton("Prescriptions 💊")
         edit_btn.clicked.connect(self.open_config)
+        date_btn = QPushButton("Change Date 🗓️")
+        date_btn.clicked.connect(self.open_date)
+
         header_layout.addWidget(edit_btn)
+        header_layout.addWidget(date_btn)
         header_layout.addStretch()
         main_layout.addLayout(header_layout)
 
@@ -1198,6 +1304,12 @@ class PersonDashboard(QMainWindow):
     def open_config(self):
         dialog = PrescriptionList(self.db, self.person_id, self)
         if dialog.exec():
+            self.refresh_dashboard()
+
+    def open_date(self):
+        dialog = DatePicker(self)
+        if dialog.exec():
+            self.setup_window_title()
             self.refresh_dashboard()
 
     def open_history(self):
