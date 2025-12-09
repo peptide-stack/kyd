@@ -1252,6 +1252,7 @@ class PersonDashboard(QMainWindow):
                     administer_btn = QPushButton(f"Administer Dose ({remaining} remaining)")
                     administer_btn.clicked.connect(lambda: self.administer_selected_dose(remaining))
                     self.details_layout.addWidget(administer_btn)
+            self.details_layout.addStretch()
         else:
             # Show doses due today
             today = get_today()
