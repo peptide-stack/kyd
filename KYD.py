@@ -99,7 +99,7 @@ class Database:
                 name TEXT NOT NULL,
                 quantity INTEGER NOT NULL CHECK(quantity >= 0),
                 vial_size INTEGER NOT NULL CHECK(vial_size >= 1),
-                unit TEXT NOT NULL CHECK(unit IN ('mg', 'mcg', 'ml')),
+                unit TEXT NOT NULL,
                 reorder_code TEXT NOT NULL)
         """)
 
@@ -108,6 +108,9 @@ class Database:
     def close(self):
         self.conn.close()
 
+def is_weekday() -> List[int]:
+    return [0, 1, 2, 3, 4]
+
 def monday_wednesday_friday() -> List[int]:
     return [0, 2, 4]
 
@@ -115,10 +118,10 @@ def monday_thursday() -> List[int]:
     return [0, 3]
 
 def all_frequencies() -> List[str]:
-    return ['daily', 'twice-daily', 'weekly', 'M,W,F', 'M,TH', 'monthly', 'quarterly']
+    return ['daily', 'twice-daily', 'weekly', 'M,W,F', 'M,TH', 'MTWTHF', 'monthly', 'quarterly']
 
 def weekly_frequencies() -> List[str]:
-    return ['weekly', 'M,W,F', 'M,TH']
+    return ['weekly', 'M,W,F', 'M,TH', 'MTWTHF']
 
 # ============================================================================
 # CYCLING LOGIC
@@ -159,9 +162,13 @@ def is_dose_due_on_date(prescription, check_date):
     elif freq == 'twice-daily':
         if check_date >= date_first:
             return 2
-    elif freq == 'M,W,F': # weekday() == 0, 2, 4
+    elif freq == 'M,W,F':  # weekday() == 0, 2, 4
         # Monday Wednesday Friday
         if check_date >= date_first and check_date.weekday() in monday_wednesday_friday():
+            return 1
+    elif freq == 'MTWTHF': # weekday() == 0, 2, 4
+        # Monday Wednesday Friday
+        if check_date >= date_first and check_date.weekday() in is_weekday():
             return 1
     elif freq == 'M,TH': # weekday() == 0, 2, 4
         # Monday Wednesday Friday
@@ -348,7 +355,7 @@ class DoseHistoryEditDialog(QDialog):
         form_layout.addRow("Amount:", self.amount_input)
 
         self.unit_input = QComboBox()
-        self.unit_input.addItems(["mg", "mcg", "ml"])
+        self.unit_input.addItems(["mg", "mcg", "ml", "set"])
         self.unit_input.currentTextChanged.connect(self.mark_dose_changed)
         form_layout.addRow("Unit:", self.unit_input)
 
@@ -658,7 +665,7 @@ class PrescriptionList(QDialog):
         self.prescription_table.setItem(row, 1, QTableWidgetItem(str(amount)))
 
         unit_combo = QComboBox()
-        unit_combo.addItems(["mg", "mcg", "ml"])
+        unit_combo.addItems(["mg", "mcg", "ml", "set"])
         unit_combo.setCurrentText(unit)
         unit_combo.currentTextChanged.connect(lambda: self.mark_changed(row, 2))
         self.prescription_table.setCellWidget(row, 2, unit_combo)
@@ -1464,7 +1471,7 @@ class HomeWindow(QMainWindow):
 
 class ItemDialog(QDialog):
     def __init__(self, parent=None):
-        UNITS = ["mg", "mcg", "ml"]
+        UNITS = ["mg", "mcg", "ml", "set"]
 
         super().__init__(parent)
         self.setWindowTitle("New Item")
