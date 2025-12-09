@@ -18,7 +18,7 @@ from PyQt6.QtGui import QFont, QBrush, QColor
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLayoutItem,
     QPushButton, QLabel, QLineEdit, QTableWidget, QTableWidgetItem,
-    QMessageBox, QDialog, QFormLayout, QComboBox, QSpinBox,
+    QMessageBox, QDialog, QFormLayout, QComboBox, QSpinBox, QGroupBox,
     QGridLayout, QFrame, QDateEdit, QHeaderView, QDialogButtonBox, QLayout
 )
 # from dateutil.relativedelta import relativedelta
@@ -928,12 +928,9 @@ class PersonDashboard(QMainWindow):
 
     def _add_date_bar(self, main_layout: QLayoutItem):
         # Change Date Label
-        primary_layout = QVBoxLayout()
-        date_label_layout = QHBoxLayout()
-        date_label = QLabel("Change Date")
-        date_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        date_label_layout.addWidget(date_label, alignment=Qt.AlignmentFlag.AlignCenter)
-        primary_layout.addLayout(date_label_layout)
+        date_box = QGroupBox("Change Date")
+        date_box.setFlat(False)
+        date_box.setStyleSheet("QGroupBox { font-weight: bold; }")
 
         date_control_layout = QHBoxLayout()
         week_back_btn = QPushButton("⬅️ Week")
@@ -956,9 +953,11 @@ class PersonDashboard(QMainWindow):
         week_fwd_btn = QPushButton("Week ➡️")
         week_fwd_btn.clicked.connect(lambda: self.change_date(7))
         date_control_layout.addWidget(week_fwd_btn)
-        primary_layout.addLayout(date_control_layout)
+        # primary_layout.addLayout(date_control_layout)
 
-        main_layout.addLayout(primary_layout)
+        # main_layout.addLayout(primary_layout)
+        date_box.setLayout(date_control_layout)
+        main_layout.addWidget(date_box, 0, Qt.AlignmentFlag.AlignTop)
 
     def setup_person_ui(self):
         self.setup_window_title()
@@ -989,14 +988,17 @@ class PersonDashboard(QMainWindow):
 
         # Details frame
         details_section = QHBoxLayout()
-        future_frame = QFrame()
+        future_frame = QGroupBox("Next 30 days")
+        future_frame.setStyleSheet("QGroupBox { font-weight: bold; }")
         future_frame.setMinimumHeight(250)
-        future_frame.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Sunken)
+        future_frame.setFlat(False)
+
         self.future_layout = QVBoxLayout(future_frame)
 
-        details_frame = QFrame()
+        details_frame = QGroupBox("Due Today")
+        details_frame.setStyleSheet("QGroupBox { font-weight: bold; }")
         details_frame.setMinimumHeight(250)
-        details_frame.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Sunken)
+        future_frame.setFlat(False)
         self.details_layout = QVBoxLayout(details_frame)
 
         # main_layout.addWidget(details_frame)
@@ -1118,14 +1120,13 @@ class PersonDashboard(QMainWindow):
 
         if len(future_doses) > 0:
             dose_row = 0
-            title = QLabel(f"<b>Doses in next {DAYS_AHEAD} days:</b>")
-            self.future_layout.addWidget(title)
             future_compounds = sorted(future_doses.keys())
 
-            for compound_name in future_compounds:
-                future_grid = QGridLayout()
-                future_grid.setSpacing(10)
+            future_grid = QGridLayout()
+            future_grid.setSpacing(10)
+            future_grid.setVerticalSpacing(15)
 
+            for compound_name in future_compounds:
                 prescription = future_doses[compound_name]
 
                 if prescription['unit'] == 'mcg' and prescription['amount'] > 1000:
@@ -1140,11 +1141,14 @@ class PersonDashboard(QMainWindow):
                 future_grid.addWidget(name_label, dose_row, 0)
                 future_grid.addWidget(amount_label, dose_row, 1)
                 future_grid.addWidget(count_label, dose_row, 2)
+                dose_row += 1
 
-                self.future_layout.addLayout(future_grid)
+            self.future_layout.addLayout(future_grid, stretch=0)
         else:
             label = QLabel("No Pending Doses")
-            self.future_layout.addWidget(label)
+            self.future_layout.addWidget(label, stretch=0)
+
+        self.future_layout.addStretch()
 
 
     def upcoming_doses(self, days_ahead: int):
@@ -1266,7 +1270,8 @@ class PersonDashboard(QMainWindow):
                     'unit': presc[7],
                     'frequency': presc[8],
                     'cycling_days_on': presc[9],
-                    'cycling_days_off': presc[10]
+                    'cycling_days_off': presc[10],
+                    'icon_type': presc[11]
                 }
 
                 expected_today = is_dose_due_on_date(prescription, today)
@@ -1284,14 +1289,10 @@ class PersonDashboard(QMainWindow):
                         due_today.append((prescription, remaining))
 
             if due_today:
-                title = QLabel("<b>Doses Due Today:</b>")
-                self.details_layout.addWidget(title)
-
                 for prescription, remaining in due_today:
-                    dose_widget = QWidget()
-                    dose_layout = QHBoxLayout(dose_widget)
+                    dose_layout = QHBoxLayout()
 
-                    info_label = QLabel(f"{prescription['compound_name']} - {prescription['amount']} {prescription['unit']} ({remaining} remaining)")
+                    info_label = QLabel(f"{prescription['compound_name']} {prescription['icon_type']} - {prescription['amount']} {prescription['unit']} ({remaining} remaining)")
                     dose_layout.addWidget(info_label)
 
                     administer_btn = QPushButton("Administer")
@@ -1299,10 +1300,12 @@ class PersonDashboard(QMainWindow):
                     administer_btn.clicked.connect(lambda checked, p=prescription, r=remaining: self.administer_dose_quick(p, r))
                     dose_layout.addWidget(administer_btn)
 
-                    self.details_layout.addWidget(dose_widget)
+                    self.details_layout.addLayout(dose_layout, stretch=0)
             else:
                 label = QLabel("No doses due today.")
-                self.details_layout.addWidget(label)
+                self.details_layout.addWidget(label, stretch=0)
+
+            self.details_layout.addStretch()
 
     def administer_selected_dose(self, remaining):
         if not self.selected_prescription:
