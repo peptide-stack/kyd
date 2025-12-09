@@ -1288,6 +1288,7 @@ class PersonDashboard(QMainWindow):
                     dose_layout.addWidget(info_label)
 
                     administer_btn = QPushButton("Administer")
+                    administer_btn.setMaximumWidth(100)
                     administer_btn.clicked.connect(lambda checked, p=prescription, r=remaining: self.administer_dose_quick(p, r))
                     dose_layout.addWidget(administer_btn)
 
