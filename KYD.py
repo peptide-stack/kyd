@@ -39,6 +39,10 @@ def get_today():
     # For testing future dates, uncomment and modify:
     # return date(2025, 11, 10)
 
+
+def is_showing_future_date():
+    global GLOBAL_TIME_DELTA_DAYS
+    return GLOBAL_TIME_DELTA_DAYS > 0
 # ============================================================================
 # DATABASE SETUP
 # ============================================================================
@@ -882,7 +886,10 @@ class PersonDashboard(QMainWindow):
 
         self.future_layout = QVBoxLayout(future_frame)
 
-        details_frame = QGroupBox("Due Today")
+        if not is_showing_future_date():
+            details_frame = QGroupBox("Due Today")
+        else:
+            details_frame = QGroupBox("On This Day")
         details_frame.setStyleSheet("QGroupBox { font-weight: bold; }")
         details_frame.setMinimumHeight(250)
         future_frame.setFlat(False)
@@ -1135,7 +1142,7 @@ class PersonDashboard(QMainWindow):
                 administered_count = cursor.fetchone()[0]
                 remaining = expected_today - administered_count
 
-                if remaining > 0:
+                if remaining > 0 and not is_showing_future_date():
                     administer_btn = QPushButton(f"Administer Dose ({remaining} remaining)")
                     administer_btn.clicked.connect(lambda: self.administer_selected_dose(remaining))
                     self.details_layout.addWidget(administer_btn)
@@ -1183,14 +1190,18 @@ class PersonDashboard(QMainWindow):
                     info_label = QLabel(f"{prescription['compound_name']} {prescription['icon_type']} - {prescription['amount']} {prescription['unit']} ({remaining} remaining)")
                     dose_layout.addWidget(info_label)
 
-                    administer_btn = QPushButton("Administer")
-                    administer_btn.setMaximumWidth(100)
-                    administer_btn.clicked.connect(lambda checked, p=prescription, r=remaining: self.administer_dose_quick(p, r))
-                    dose_layout.addWidget(administer_btn)
+                    if not is_showing_future_date():
+                        administer_btn = QPushButton("Administer")
+                        administer_btn.setMaximumWidth(100)
+                        administer_btn.clicked.connect(lambda checked, p=prescription, r=remaining: self.administer_dose_quick(p, r))
+                        dose_layout.addWidget(administer_btn)
 
                     self.details_layout.addLayout(dose_layout, stretch=0)
             else:
-                label = QLabel("No doses due today.")
+                if not is_showing_future_date():
+                    label = QLabel("No doses due today.")
+                else:
+                    label = QLabel("No doses.")
                 self.details_layout.addWidget(label, stretch=0)
 
             self.details_layout.addStretch()
