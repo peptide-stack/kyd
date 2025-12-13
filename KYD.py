@@ -200,75 +200,6 @@ def last_day_of_month(dt):
     next_month = dt.replace(day=28) + timedelta(days=4)
     return (next_month - timedelta(days=next_month.day)).day
 
-# def get_next_due_date(prescription, db):
-#     """Calculate the next due date for a prescription."""
-#     freq = prescription['frequency']
-#     date_first = datetime.strptime(prescription['date_first_prescribed'], '%Y-%m-%d').date()
-#     date_last_admin = prescription.get('date_last_administered')
-#
-#     if date_last_admin:
-#         last_admin = datetime.strptime(date_last_admin, '%Y-%m-%d').date()
-#     else:
-#         last_admin = None
-#
-#     today = get_today()
-#
-#     # Start from last administered or first prescribed
-#     start_date = last_admin if last_admin else date_first
-#
-#     if freq in ['daily', 'twice-daily']:
-#         # For daily, check cycling
-#         cycling_on = prescription.get('cycling_days_on')
-#         cycling_off = prescription.get('cycling_days_off')
-#
-#         if cycling_on and cycling_off:
-#             cycle_length = cycling_on + cycling_off
-#             check_date = start_date + timedelta(days=1) if last_admin else start_date
-#
-#             while check_date <= today + timedelta(days=365):  # Search up to a year
-#                 days_since_start = (check_date - date_first).days
-#                 position_in_cycle = days_since_start % cycle_length
-#
-#                 if position_in_cycle < cycling_on:
-#                     return check_date
-#                 check_date += timedelta(days=1)
-#         else:
-#             return start_date + timedelta(days=1) if last_admin else start_date
-#
-#     elif freq == 'weekly':
-#         next_date = start_date + timedelta(days=7) if last_admin else start_date
-#         return next_date
-#
-#     elif freq == 'monthly':
-#         if last_admin:
-#             next_date = last_admin + relativedelta(months=1)
-#         else:
-#             next_date = date_first
-#
-#         # Adjust for end of month
-#         target_day = date_first.day
-#         if target_day > last_day_of_month(next_date):
-#             next_date = next_date.replace(day=last_day_of_month(next_date))
-#         else:
-#             next_date = next_date.replace(day=target_day)
-#         return next_date
-#
-#     elif freq == 'quarterly':
-#         if last_admin:
-#             next_date = last_admin + relativedelta(months=3)
-#         else:
-#             next_date = date_first
-#
-#         # Adjust for end of month
-#         target_day = date_first.day
-#         if target_day > last_day_of_month(next_date):
-#             next_date = next_date.replace(day=last_day_of_month(next_date))
-#         else:
-#             next_date = next_date.replace(day=target_day)
-#         return next_date
-#
-#     return today
-
 # ============================================================================
 # SCREEN 1: NEW PERSON
 # ============================================================================
@@ -818,8 +749,7 @@ class PersonDashboard(QMainWindow):
         self.person_id = person_id
         self.selected_prescription = None
         self.load_person()
-        # self.add_missed_doses_yesterday()
-        self.resize(900, 750)
+        self.resize(900, 760)
         self.setup_person_ui()
         self.refresh_dashboard()
 
@@ -828,49 +758,6 @@ class PersonDashboard(QMainWindow):
         cursor.execute("SELECT name FROM Person WHERE id = ?", (self.person_id,))
         result = cursor.fetchone()
         self.person_name = result[0] if result else "Unknown"
-
-    def add_missed_doses_yesterday(self):
-        """Add zero-amount doses for yesterday if they were missed."""
-        yesterday = get_today() - timedelta(days=1)
-        cursor = self.db.conn.cursor()
-
-        # Get all prescriptions
-        cursor.execute("SELECT * FROM Prescription WHERE person_id = ? order by compound_name ASC, date_last_administered DESC", (self.person_id,))
-        prescriptions = cursor.fetchall()
-        for presc in prescriptions:
-            prescription = {
-                'id': presc[0],
-                'date_first_prescribed': presc[2],
-                'frequency': presc[8],
-                'cycling_days_on': presc[9],
-                'cycling_days_off': presc[10],
-                'compound_name': presc[5],
-                'unit': presc[7],
-                'icon_type': presc[11]
-            }
-
-            expected_doses = is_dose_due_on_date(prescription, yesterday)
-
-            if expected_doses > 0:
-                # Check how many doses were actually administered
-                cursor.execute("""
-                    SELECT COUNT(*) FROM HistoricalDose 
-                    WHERE person_id = ? AND prescription_id = ? AND date_administered = ?
-                """, (self.person_id, prescription['id'], yesterday.isoformat()))
-
-                actual_count = cursor.fetchone()[0]
-
-                if actual_count == 0:
-                    # Add missed dose records
-                    for dose_num in range(1, expected_doses + 1):
-                        cursor.execute("""
-                            INSERT INTO HistoricalDose 
-                            (person_id, prescription_id, date_administered, compound_name, amount, unit, dose_number)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (self.person_id, prescription['id'], yesterday.isoformat(),
-                              prescription['compound_name'], 0, prescription['unit'], dose_num))
-
-        self.db.conn.commit()
 
     def setup_window_title(self):
         global GLOBAL_TIME_DELTA_DAYS
