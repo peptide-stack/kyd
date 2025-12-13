@@ -1294,6 +1294,7 @@ class PersonDashboard(QMainWindow):
         else:
             GLOBAL_TIME_DELTA_DAYS += day_delta
         self.setup_person_ui()
+        self.selected_prescription = None # nothing selected when we move forward through time
         self.refresh_dashboard()
 
     def open_history(self):
