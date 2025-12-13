@@ -872,7 +872,8 @@ class PersonDashboard(QMainWindow):
         for col, day in enumerate(ordered_days):
             label = QLabel(day)
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            label.setFont(QFont("Arial", 13, QFont.Weight.Bold))
+            label.setStyleSheet("QLabel { background-color: #555555; color: white; }")
             self.weekly_grid.addWidget(label, 0, col)
 
         main_layout.addLayout(self.weekly_grid)
