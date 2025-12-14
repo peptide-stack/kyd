@@ -753,7 +753,7 @@ class PersonDashboard(QMainWindow):
         self.person_id = person_id
         self.selected_prescription = None
         self.load_person()
-        self.resize(900, 760)
+        self.resize(900, 800)
         self.setup_person_ui()
         self.refresh_dashboard()
 
