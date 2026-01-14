@@ -27,7 +27,11 @@ from PyQt6.QtWidgets import (
 
 
 GLOBAL_TIME_DELTA_DAYS = 0
-# ============================================================================
+FUTURE_DOSES_DAYS_AHEAD = 30
+
+
+# ==========================
+# ==================================================
 # CENTRALIZED DATE FUNCTION FOR DEBUGGING
 # ============================================================================
 def get_today():
@@ -749,6 +753,7 @@ class PersonDashboard(QMainWindow):
         self.weekly_grid = None
         self.person_name = None
         self.future_layout = None
+        self.future_group = None
         self.db = db
         self.person_id = person_id
         self.selected_prescription = None
@@ -879,12 +884,14 @@ class PersonDashboard(QMainWindow):
         main_layout.addLayout(self.weekly_grid)
 
         # Details frame
+        global FUTURE_DOSES_DAYS_AHEAD
         details_section = QHBoxLayout()
-        future_frame = QGroupBox("Next 30 days")
+        future_frame = QGroupBox(f"Next {FUTURE_DOSES_DAYS_AHEAD} days")
         future_frame.setStyleSheet("QGroupBox { font-weight: bold; }")
         future_frame.setMinimumHeight(250)
         future_frame.setFlat(False)
 
+        self.future_group = future_frame
         self.future_layout = QVBoxLayout(future_frame)
 
         if not is_showing_future_date():
@@ -1006,12 +1013,29 @@ class PersonDashboard(QMainWindow):
                         child.widget().deleteLater()
                 sub.deleteLater()
 
+    def alternate_days_ahead_value(self ):
+        global FUTURE_DOSES_DAYS_AHEAD
+        if FUTURE_DOSES_DAYS_AHEAD == 30:
+            return 14
+        else:git
+            return 30
+
+    def change_days_ahead(self):
+        global FUTURE_DOSES_DAYS_AHEAD
+        FUTURE_DOSES_DAYS_AHEAD = self.alternate_days_ahead_value()
+        self.refresh_dashboard()
+
     def populate_future_doses(self):
         # Clear current layout
         self._clear_layout(self.future_layout)
+        global FUTURE_DOSES_DAYS_AHEAD
 
-        DAYS_AHEAD = 30
-        future_doses = self.upcoming_doses(DAYS_AHEAD)
+        self.future_group.setTitle(f"Next {FUTURE_DOSES_DAYS_AHEAD} days")
+        days_ahead_button = QPushButton(f"See {self.alternate_days_ahead_value()} Days")
+        days_ahead_button.clicked.connect(lambda: self.change_days_ahead())
+        self.future_layout.addWidget(days_ahead_button)
+
+        future_doses = self.upcoming_doses(FUTURE_DOSES_DAYS_AHEAD)
 
         if len(future_doses) > 0:
             dose_row = 0
