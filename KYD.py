@@ -1017,7 +1017,7 @@ class PersonDashboard(QMainWindow):
         global FUTURE_DOSES_DAYS_AHEAD
         if FUTURE_DOSES_DAYS_AHEAD == 30:
             return 14
-        else:git
+        else:
             return 30
 
     def change_days_ahead(self):
@@ -1026,9 +1026,9 @@ class PersonDashboard(QMainWindow):
         self.refresh_dashboard()
 
     def populate_future_doses(self):
+        global FUTURE_DOSES_DAYS_AHEAD
         # Clear current layout
         self._clear_layout(self.future_layout)
-        global FUTURE_DOSES_DAYS_AHEAD
 
         self.future_group.setTitle(f"Next {FUTURE_DOSES_DAYS_AHEAD} days")
         days_ahead_button = QPushButton(f"See {self.alternate_days_ahead_value()} Days")
