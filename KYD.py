@@ -82,6 +82,7 @@ class Database:
                 cycling_days_on INTEGER,
                 cycling_days_off INTEGER,
                 icon_type TEXT NOT NULL DEFAULT '💊',
+                look_forward INTEGER NOT NULL DEFAULT 1,
                 FOREIGN KEY (person_id) REFERENCES Person(id)
             )
         """)
@@ -590,7 +591,7 @@ class PrescriptionList(QDialog):
 
     def populate_row(self, row, presc=None):
         if presc:
-            prescription_id, person_id, date_first, date_modified, date_last_admin, compound, amount, unit, freq, cycle_on, cycle_off, icon_str = presc
+            prescription_id, person_id, date_first, date_modified, date_last_admin, compound, amount, unit, freq, cycle_on, cycle_off, icon_str, look_forward = presc
         else:
             prescription_id = None
             compound, amount, unit, freq = "", 0, "mg", "daily"
@@ -1074,7 +1075,7 @@ class PersonDashboard(QMainWindow):
         today = get_today()
 
         cursor = self.db.conn.cursor()
-        cursor.execute("SELECT * FROM Prescription WHERE person_id = ? ORDER BY compound_name ASC, date_last_administered DESC", (self.person_id,))
+        cursor.execute("SELECT * FROM Prescription WHERE person_id = ? and look_forward != 0 ORDER BY compound_name ASC, date_last_administered DESC", (self.person_id,))
         prescriptions = cursor.fetchall()
 
         future_doses = {}
