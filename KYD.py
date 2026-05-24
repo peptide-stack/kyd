@@ -83,9 +83,16 @@ class Database:
                 cycling_days_off INTEGER,
                 icon_type TEXT NOT NULL DEFAULT '💊',
                 look_forward INTEGER NOT NULL DEFAULT 1,
+                notes TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY (person_id) REFERENCES Person(id)
             )
         """)
+
+        # Migration: add notes column to pre-existing Prescription tables
+        cursor.execute("PRAGMA table_info(Prescription)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+        if 'notes' not in existing_columns:
+            cursor.execute("ALTER TABLE Prescription ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
 
         # Historical Dose table
         cursor.execute("""
@@ -505,10 +512,10 @@ class PrescriptionList(QDialog):
 
         # Table
         self.prescription_table = QTableWidget()
-        self.prescription_table.setColumnCount(11)
+        self.prescription_table.setColumnCount(12)
         self.prescription_table.setHorizontalHeaderLabels([
             "Name", "Amount", "Unit", "Frequency",
-            "Cycle On", "Cycle Off", "Date First", "Last Modified", "Last Admin", "Icon", ""
+            "Cycle On", "Cycle Off", "Date First", "Last Modified", "Last Admin", "Icon", "Notes", ""
         ])
         self.prescription_table.cellChanged.connect(self.mark_changed)
 
@@ -591,7 +598,7 @@ class PrescriptionList(QDialog):
 
     def populate_row(self, row, presc=None):
         if presc:
-            prescription_id, person_id, date_first, date_modified, date_last_admin, compound, amount, unit, freq, cycle_on, cycle_off, icon_str, look_forward = presc
+            prescription_id, person_id, date_first, date_modified, date_last_admin, compound, amount, unit, freq, cycle_on, cycle_off, icon_str, look_forward, notes = presc
         else:
             prescription_id = None
             compound, amount, unit, freq = "", 0, "mg", "daily"
@@ -600,6 +607,7 @@ class PrescriptionList(QDialog):
             date_modified = get_today().isoformat()
             date_last_admin = None
             icon_str = '💊'
+            notes = ''
 
         self.prescription_table.setItem(row, 0, QTableWidgetItem(compound))
         self.prescription_table.setItem(row, 1, QTableWidgetItem(str(amount)))
@@ -628,9 +636,11 @@ class PrescriptionList(QDialog):
 
         self.prescription_table.setItem(row, 9, QTableWidgetItem(str(icon_str) if icon_str else "💊"))
 
+        self.prescription_table.setItem(row, 10, QTableWidgetItem(notes or ""))
+
         delete_btn = QPushButton("Delete")
         delete_btn.clicked.connect(lambda: self.delete_prescription(row, prescription_id))
-        self.prescription_table.setCellWidget(row, 10, delete_btn)
+        self.prescription_table.setCellWidget(row, 11, delete_btn)
 
         # Store prescription_id in row
         if prescription_id:
@@ -700,6 +710,9 @@ class PrescriptionList(QDialog):
             item = self.prescription_table.item(row, 9)
             icon_str = item.text() if item is not None else "💊"
 
+            notes_item = self.prescription_table.item(row, 10)
+            notes = notes_item.text().strip() if notes_item is not None else ""
+
             prescription_id = self.prescription_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
 
             # Update date_last_modified if row was modified
@@ -711,26 +724,26 @@ class PrescriptionList(QDialog):
                 if row in self.date_modified_manually:
                     # we update all dates
                     cursor.execute("""
-                        UPDATE Prescription 
+                        UPDATE Prescription
                         SET compound_name = ?, amount = ?, unit = ?, frequency = ?,
-                            cycling_days_on = ?, cycling_days_off = ?, 
+                            cycling_days_on = ?, cycling_days_off = ?,
                             date_first_prescribed = ?, date_last_modified = ?, date_last_administered = ?,
-                            icon_type = ?
+                            icon_type = ?, notes = ?
                         WHERE id = ?
-                    """, (compound, amount, unit, freq, cycle_on, cycle_off, date_first, date_modified, date_last_admin, icon_str, prescription_id))
+                    """, (compound, amount, unit, freq, cycle_on, cycle_off, date_first, date_modified, date_last_admin, icon_str, notes, prescription_id))
                 else:
                     cursor.execute("""
-                        UPDATE Prescription 
+                        UPDATE Prescription
                         SET compound_name = ?, amount = ?, unit = ?, frequency = ?,
-                            cycling_days_on = ?, cycling_days_off = ?, date_last_modified = ?, icon_type = ?
+                            cycling_days_on = ?, cycling_days_off = ?, date_last_modified = ?, icon_type = ?, notes = ?
                         WHERE id = ?
-                    """, (compound, amount, unit, freq, cycle_on, cycle_off, date_modified, icon_str, prescription_id))
+                    """, (compound, amount, unit, freq, cycle_on, cycle_off, date_modified, icon_str, notes, prescription_id))
             else:
                 cursor.execute("""
-                    INSERT INTO Prescription 
-                    (person_id, date_first_prescribed, date_last_modified, compound_name, amount, unit, frequency, cycling_days_on, cycling_days_off, icon_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (self.person_id, date_first, date_modified, compound, amount, unit, freq, cycle_on, cycle_off, icon_str))
+                    INSERT INTO Prescription
+                    (person_id, date_first_prescribed, date_last_modified, compound_name, amount, unit, frequency, cycling_days_on, cycling_days_off, icon_type, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (self.person_id, date_first, date_modified, compound, amount, unit, freq, cycle_on, cycle_off, icon_str, notes))
 
         self.db.conn.commit()
         self.accept()
@@ -959,7 +972,8 @@ class PersonDashboard(QMainWindow):
                     'frequency': presc[8],
                     'cycling_days_on': presc[9],
                     'cycling_days_off': presc[10],
-                    'icon_type': presc[11]
+                    'icon_type': presc[11],
+                    'notes': presc[13] if len(presc) > 13 else ''
                 }
 
                 expected_doses = is_dose_due_on_date(prescription, current_date)
@@ -984,16 +998,22 @@ class PersonDashboard(QMainWindow):
                 icon_layout = QHBoxLayout(icon_widget)
                 icon_layout.setContentsMargins(0, 0, 0, 0)
 
+                tooltip = prescription.get('notes') or ''
+
                 if total == 2:  # Twice daily
                     # Show pills side by side
                     for _ in range(remaining):
                         pill_btn = QPushButton(f"{prescription['compound_name']} {prescription['icon_type']}")
                         # pill_btn.setFixedSize(30, 30)
+                        if tooltip:
+                            pill_btn.setToolTip(tooltip)
                         pill_btn.clicked.connect(lambda checked, p=prescription: self.select_prescription(p))
                         icon_layout.addWidget(pill_btn)
                 else:
                     pill_btn = QPushButton(f"{prescription['compound_name']} {prescription['icon_type']}")
                     # pill_btn.setFixedSize(30, 30)
+                    if tooltip:
+                        pill_btn.setToolTip(tooltip)
                     pill_btn.clicked.connect(lambda checked, p=prescription: self.select_prescription(p))
                     icon_layout.addWidget(pill_btn)
 
@@ -1151,7 +1171,12 @@ class PersonDashboard(QMainWindow):
                     cycle_units = "weeks"
                 details_text += f"<b>Cycling:</b> {presc['cycling_days_on']} {cycle_units} on, {presc['cycling_days_off']} {cycle_units} off<br>"
 
+            notes = (presc.get('notes') or '').strip()
+            if notes:
+                details_text += f"<b>Notes:</b> {notes}<br>"
+
             label = QLabel(details_text)
+            label.setWordWrap(True)
             self.details_layout.addWidget(label)
 
             # Check if dose is due today
